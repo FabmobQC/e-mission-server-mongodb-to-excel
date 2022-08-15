@@ -4,6 +4,7 @@
 from pymongo import MongoClient
 import csv
 from datetime import date
+import json
 
 
 today = date.today()
@@ -21,7 +22,13 @@ headers = ["user_uuid", "user_email", "trip_id", "section_id",
            "end_loc_lon_section", "end_loc_lat_section", "distance_section", "predicted_modes", "manual_mode", "manual_purpose"]
 writer.writerow(headers)
 
-client = MongoClient(port=27017)
+
+config_file = open('.env')
+config_data = json.load(config_file)
+
+print(config_data["url"])
+
+client = MongoClient(config_data["url"])
 db=client.Stage_database
 users = db.Stage_uuids.find()
 for user in users:
