@@ -13,7 +13,9 @@ output = open("e_mission_database.csv", "w")
 
 output_traces = open("e_mission_database_traces.csv", "w")
 
-writer_traces = csv.writer(output)
+writer = csv.writer(output)
+
+writer_traces = csv.writer(output_traces)
 
 headers = ["user_uuid", "user_email", "trip_id", "section_id",
            "start_fmt_time", "end_fmt_time", "duration",
