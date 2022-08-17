@@ -16,7 +16,7 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
         {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"})
     for trip in trips:
         sections = db.Stage_analysis_timeseries.find(
-            {"user_id": user["uuid"], "metadata.key": "analysis/cleaned_section", "data.trip_id": trip["_id"]})
+            {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_section", "data.trip_id": trip["_id"]})
 
         manual_mode = db.Stage_timeseries.find(
             {"data.start_ts": trip["data"]["start_ts"], "metadata.key": "manual/mode_confirm"})
@@ -35,7 +35,7 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
         for section in sections:
 
             mode_predicted = db.Stage_analysis_timeseries.find(
-                {"user_id": user["uuid"], "metadata.key": "inference/prediction", "data.trip_id": trip["_id"], "data.section_id": section["_id"]})
+                {"user_id": uuid.UUID(user), "metadata.key": "inference/prediction", "data.trip_id": trip["_id"], "data.section_id": section["_id"]})
             mode_predicted_label = ""
 
             for m in mode_predicted:
@@ -43,7 +43,7 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
                     mode_predicted_label = key
 
             writer.writerow(
-                [user["uuid"], user["user_email"], trip["_id"], section["_id"],
+                [user, trip["_id"], section["_id"],
                     trip["data"]["start_fmt_time"], trip["data"]["end_fmt_time"], trip["data"]["duration"],
                     section["data"]["start_fmt_time"], section["data"]["end_fmt_time"], section["data"]["duration"],
                     trip["data"]["start_loc"]["coordinates"][0], trip["data"]["start_loc"]["coordinates"][1],
@@ -56,7 +56,7 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
 
             for trace in section_traces:
 
-                writer_traces.writerow([trace["user_id"], trip["_id"], section["_id"], trace["data"]
+                writer_traces.writerow([user, trip["_id"], section["_id"], trace["data"]
                                         ["fmt_time"], trace["data"]["latitude"], trace["data"]["longitude"], trace["data"]["ts"], trace["data"]["altitude"], trace["data"]["distance"], trace["data"]["speed"], trace["data"]["heading"], trace["data"]["mode"]])
 
 
@@ -78,7 +78,7 @@ def main(argv):
 
     writer_traces = csv.writer(output_traces)
 
-    headers = ["user_uuid", "user_email", "trip_id", "section_id",
+    headers = ["user_uuid", "trip_id", "section_id",
                "start_fmt_time", "end_fmt_time", "duration",
                "start_fmt_time_section", "end_fmt_time_section", "duration_section",
                "start_loc_lon", "start_loc_lat",
@@ -115,9 +115,9 @@ def main(argv):
         users = f.readlines()
 
         for user in users:
-            print(user)
+            print("Working on : " + user)
             extract_user_trips_and_traces(
-                str(user), db, today, writer, writer_traces)
+                user.rstrip('\n'), db, today, writer, writer_traces)
 
 
 if __name__ == "__main__":
