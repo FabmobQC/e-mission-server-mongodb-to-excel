@@ -115,8 +115,9 @@ def main(argv):
         users = f.readlines()
 
         for user in users:
+            print(user)
             extract_user_trips_and_traces(
-                user, db, today, writer, writer_traces)
+                str(user), db, today, writer, writer_traces)
 
 
 if __name__ == "__main__":
