@@ -13,15 +13,29 @@ import getopt
 
 def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
     trips = db.Stage_analysis_timeseries.find(
-        {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"})
+        {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"}
+    )
     for trip in trips:
         sections = db.Stage_analysis_timeseries.find(
-            {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_section", "data.trip_id": trip["_id"]})
+            {
+                "user_id": uuid.UUID(user),
+                "metadata.key": "analysis/cleaned_section",
+                "data.trip_id": trip["_id"],
+            }
+        )
 
         manual_mode = db.Stage_timeseries.find(
-            {"data.start_ts": trip["data"]["start_ts"], "metadata.key": "manual/mode_confirm"})
+            {
+                "data.start_ts": trip["data"]["start_ts"],
+                "metadata.key": "manual/mode_confirm",
+            }
+        )
         manual_purpose = db.Stage_timeseries.find(
-            {"data.start_ts": trip["data"]["start_ts"], "metadata.key": "manual/purpose_confirm"})
+            {
+                "data.start_ts": trip["data"]["start_ts"],
+                "metadata.key": "manual/purpose_confirm",
+            }
+        )
 
         manual_mode_label = ""
         manual_purpose_label = ""
@@ -33,9 +47,14 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
             manual_purpose_label = m["data"]["label"]
 
         for section in sections:
-
             mode_predicted = db.Stage_analysis_timeseries.find(
-                {"user_id": uuid.UUID(user), "metadata.key": "inference/prediction", "data.trip_id": trip["_id"], "data.section_id": section["_id"]})
+                {
+                    "user_id": uuid.UUID(user),
+                    "metadata.key": "inference/prediction",
+                    "data.trip_id": trip["_id"],
+                    "data.section_id": section["_id"],
+                }
+            )
             mode_predicted_label = ""
 
             for m in mode_predicted:
@@ -43,29 +62,63 @@ def extract_user_trips_and_traces(user, db, today, writer, writer_traces):
                     mode_predicted_label = key
 
             writer.writerow(
-                [user, trip["_id"], section["_id"],
-                    trip["data"]["start_fmt_time"], trip["data"]["end_fmt_time"], trip["data"]["duration"],
-                    section["data"]["start_fmt_time"], section["data"]["end_fmt_time"], section["data"]["duration"],
-                    trip["data"]["start_loc"]["coordinates"][0], trip["data"]["start_loc"]["coordinates"][1],
-                    trip["data"]["end_loc"]["coordinates"][0], trip["data"]["end_loc"]["coordinates"][1], trip["data"]["distance"],
-                    section["data"]["start_loc"]["coordinates"][0], section["data"]["start_loc"]["coordinates"][1],
-                    section["data"]["end_loc"]["coordinates"][0], section["data"]["end_loc"]["coordinates"][1], section["data"]["distance"], mode_predicted_label, manual_mode_label, manual_purpose_label])
+                [
+                    user,
+                    trip["_id"],
+                    section["_id"],
+                    trip["data"]["start_fmt_time"],
+                    trip["data"]["end_fmt_time"],
+                    trip["data"]["duration"],
+                    section["data"]["start_fmt_time"],
+                    section["data"]["end_fmt_time"],
+                    section["data"]["duration"],
+                    trip["data"]["start_loc"]["coordinates"][0],
+                    trip["data"]["start_loc"]["coordinates"][1],
+                    trip["data"]["end_loc"]["coordinates"][0],
+                    trip["data"]["end_loc"]["coordinates"][1],
+                    trip["data"]["distance"],
+                    section["data"]["start_loc"]["coordinates"][0],
+                    section["data"]["start_loc"]["coordinates"][1],
+                    section["data"]["end_loc"]["coordinates"][0],
+                    section["data"]["end_loc"]["coordinates"][1],
+                    section["data"]["distance"],
+                    mode_predicted_label,
+                    manual_mode_label,
+                    manual_purpose_label,
+                ]
+            )
 
             section_traces = db.Stage_analysis_timeseries.find(
-                {"metadata.key": "analysis/recreated_location", "data.section": section["_id"]})
+                {
+                    "metadata.key": "analysis/recreated_location",
+                    "data.section": section["_id"],
+                }
+            )
 
             for trace in section_traces:
-
-                writer_traces.writerow([user, trip["_id"], section["_id"], trace["data"]
-                                        ["fmt_time"], trace["data"]["latitude"], trace["data"]["longitude"], trace["data"]["ts"], trace["data"]["altitude"], trace["data"]["distance"], trace["data"]["speed"], trace["data"]["heading"], trace["data"]["mode"]])
+                writer_traces.writerow(
+                    [
+                        user,
+                        trip["_id"],
+                        section["_id"],
+                        trace["data"]["fmt_time"],
+                        trace["data"]["latitude"],
+                        trace["data"]["longitude"],
+                        trace["data"]["ts"],
+                        trace["data"]["altitude"],
+                        trace["data"]["distance"],
+                        trace["data"]["speed"],
+                        trace["data"]["heading"],
+                        trace["data"]["mode"],
+                    ]
+                )
 
 
 def main(argv):
-
     try:
         opts, args = getopt.getopt(argv, "hi:", ["ifile="])
     except getopt.GetoptError:
-        print('main.py -i <inputfile>>')
+        print("main.py -i <inputfile>>")
         sys.exit(2)
 
     today = date.today()
@@ -78,25 +131,50 @@ def main(argv):
 
     writer_traces = csv.writer(output_traces)
 
-    headers = ["user_uuid", "trip_id", "section_id",
-               "start_fmt_time", "end_fmt_time", "duration",
-               "start_fmt_time_section", "end_fmt_time_section", "duration_section",
-               "start_loc_lon", "start_loc_lat",
-               "end_loc_lon", "end_loc_lat", "distance",
-               "start_loc_lon_section", "start_loc_lat_section",
-               "end_loc_lon_section", "end_loc_lat_section", "distance_section", "predicted_modes", "manual_mode", "manual_purpose"]
+    headers = [
+        "user_uuid",
+        "trip_id",
+        "section_id",
+        "start_fmt_time",
+        "end_fmt_time",
+        "duration",
+        "start_fmt_time_section",
+        "end_fmt_time_section",
+        "duration_section",
+        "start_loc_lon",
+        "start_loc_lat",
+        "end_loc_lon",
+        "end_loc_lat",
+        "distance",
+        "start_loc_lon_section",
+        "start_loc_lat_section",
+        "end_loc_lon_section",
+        "end_loc_lat_section",
+        "distance_section",
+        "predicted_modes",
+        "manual_mode",
+        "manual_purpose",
+    ]
     writer.writerow(headers)
 
-    headers_traces = ["user_uuid", "trip_id", "section_id",
-                      "fmt_time",
-                      "latitude", "longitude",
-                      "ts", "altitude", "distance",
-                      "speed", "heading",
-                      "mode"]
+    headers_traces = [
+        "user_uuid",
+        "trip_id",
+        "section_id",
+        "fmt_time",
+        "latitude",
+        "longitude",
+        "ts",
+        "altitude",
+        "distance",
+        "speed",
+        "heading",
+        "mode",
+    ]
 
     writer_traces.writerow(headers_traces)
 
-    config_file = open('.env')
+    config_file = open(".env")
     config_data = json.load(config_file)
 
     client = MongoClient(config_data["url"])
@@ -111,13 +189,13 @@ def main(argv):
             assert False, "unhandled option"
 
     with open(path_to_file) as f:
-
         users = f.readlines()
 
         for user in users:
             print("Working on : " + user)
             extract_user_trips_and_traces(
-                user.rstrip('\n'), db, today, writer, writer_traces)
+                user.rstrip("\n"), db, today, writer, writer_traces
+            )
 
 
 if __name__ == "__main__":
