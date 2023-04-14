@@ -153,7 +153,7 @@ def extract_traces(db, section, writer_traces, user, trip):
         )
 
 
-def extract_user_trips_and_traces(user, db, writer, writer_traces):
+def extract_sections_and_traces(user, db, writer, writer_traces):
     writer.writerow(headers)
     writer_traces.writerow(headers_traces)
 
@@ -179,29 +179,33 @@ def extract_user_trips_and_traces(user, db, writer, writer_traces):
             extract_traces(db, section, writer_traces, user, trip)
 
 
-def main(argv):
-    try:
-        opts, args = getopt.getopt(argv, "hi:", ["ifile="])
-    except getopt.GetoptError:
-        print("main.py -i <inputfile>>")
-        sys.exit(2)
+def get_users_from_uuids(user_uuids_filepath):
+    users_dirty = []
+    with open(user_uuids_filepath) as f:
+        users_dirty = f.readlines()
+    return [user.strip() for user in users_dirty]
 
-    path_to_file = ""
-    for o, a in opts:
-        if o == "-i":
-            path_to_file = a
-        else:
-            assert False, "unhandled option"
 
-    with open(".env") as config_file:
-        config_data = json.load(config_file)
+def get_users_from_project_ids(
+    db, project_id, excluded_emails_filepath, should_save_emails
+):
+    pass
 
-    client = MongoClient(config_data["url"])
-    db = client.Stage_database
 
-    with open(path_to_file) as f:
-        users = f.readlines()
+def get_users(db, config_type, options):
+    if config_type == "from_uuids":
+        user_uuids_filepath, = options
+        users = get_users_from_uuids(user_uuids_filepath)
+    elif config_type == "from_project_id":
+        project_id, excluded_emails_filepath, should_save_emails = options
+        users = get_users_from_project_ids(
+            db, project_id, excluded_emails_filepath, should_save_emails
+        )
+    return users  # Will throw an exception if config_type has not been handled
 
+
+def extract(db, config_type, options):
+    users = get_users(db, config_type, options)
     with open("e_mission_database.csv", "w") as output_file, open(
         "e_mission_database_traces.csv", "w"
     ) as output_traces_file:
@@ -209,7 +213,65 @@ def main(argv):
         writer_traces = csv.writer(output_traces_file)
         for user in users:
             print("Working on : " + user)
-            extract_user_trips_and_traces(user.rstrip("\n"), db, writer, writer_traces)
+            extract_sections_and_traces(user, db, writer, writer_traces)
+
+
+def parse_options(argv):
+    def print_usage_and_leave():
+        instructions = (
+            "main.py --user_uuids_file <file>"
+            + "\nmain.py --project_id <int> --excluded_emails_file <file> --should_save_emails <int>"
+        )
+        print(instructions)
+        sys.exit(2)
+
+    try:
+        opts, args = getopt.getopt(argv, "x", ["user_uuids_file=", "project_id=", "excluded_emails_file=", "should_save_emails="])
+    except getopt.GetoptError as err:
+        print(err)
+        print_usage_and_leave()
+
+    user_uuids_filepath = ""
+    excluded_emails_filepath = ""
+    project_id = None
+    should_save_emails = False
+    for o, a in opts:
+        if o == "--user_uuids_file":
+            user_uuids_filepath = a
+        elif o == "--excluded_excluded_emails_file":
+            excluded_emails_filepath = a
+        elif o == "--project_id":
+            project_id = a
+        elif o == "--should_save_emails":
+            should_save_emails != 0
+        else:
+            print_usage_and_leave()
+
+    if user_uuids_filepath and (
+        excluded_emails_filepath or project_id or should_save_emails
+    ):
+        print_usage_and_leave()
+
+    if user_uuids_filepath:
+        return "from_uuids", (user_uuids_filepath,)
+    else:
+        return "from_project_id", (
+            excluded_emails_filepath,
+            project_id,
+            should_save_emails,
+        )
+
+
+def main(argv):
+    config_type, options = parse_options(argv)
+
+    with open(".env") as config_file:
+        config_data = json.load(config_file)
+
+    client = MongoClient(config_data["url"])
+    db = client.Stage_database
+
+    extract(db, config_type, options)
 
 
 if __name__ == "__main__":
