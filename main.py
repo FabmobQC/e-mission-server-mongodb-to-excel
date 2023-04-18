@@ -50,6 +50,13 @@ headers_traces = [
     "mode",
 ]
 
+headers_users = [
+    "user_uuid",
+    "project_id",
+    "email",
+    "creation_ts",
+]
+
 
 def find_manual_mode_label(db, trip):
     manual_mode = db.Stage_timeseries.find(
@@ -186,20 +193,60 @@ def get_users_from_uuids(user_uuids_filepath):
     return [user.strip() for user in users_dirty]
 
 
+def save_users(users):
+    with open("e_mission_database_users.csv", "w") as file:
+        writer = csv.writer(file)
+        writer.writerow(headers_users)
+        for user in users:
+            writer.writerow(
+                [
+                    user.get("user_id").hex,
+                    user.get("project_id"),
+                    user.get("email"),
+                    user.get("creation_ts"),
+                ]
+            )
+
+
 def get_users_from_project_ids(
-    db, project_id, excluded_emails_filepath, should_save_emails
+    db, project_id, excluded_emails_filepath, should_save_users
 ):
-    pass
+    excluded_emails = []
+    if excluded_emails_filepath:
+        with open(excluded_emails_filepath) as f:
+            excluded_emails_dirty = f.readlines()
+            excluded_emails = [email.strip() for email in excluded_emails_dirty]
+
+    users_dirty = db.Stage_Profiles.find(
+        {
+            "project_id": project_id,
+            "email": {"$nin": excluded_emails},
+        },
+        sort=[("$natural", -1)],  # we want the most recent email first
+    )
+
+    already_used_emails = set()
+    users = []
+    for user in users_dirty:
+        email = user.get("email")
+        if email and email not in already_used_emails:
+            users.append(user)
+            already_used_emails.add(email)
+
+    if should_save_users:
+        save_users(users)
+
+    return [user["user_id"].hex for user in users]
 
 
 def get_users(db, config_type, options):
     if config_type == "from_uuids":
-        user_uuids_filepath, = options
+        (user_uuids_filepath,) = options
         users = get_users_from_uuids(user_uuids_filepath)
     elif config_type == "from_project_id":
-        project_id, excluded_emails_filepath, should_save_emails = options
+        project_id, excluded_emails_filepath, should_save_users = options
         users = get_users_from_project_ids(
-            db, project_id, excluded_emails_filepath, should_save_emails
+            db, project_id, excluded_emails_filepath, should_save_users
         )
     return users  # Will throw an exception if config_type has not been handled
 
@@ -220,13 +267,22 @@ def parse_options(argv):
     def print_usage_and_leave():
         instructions = (
             "main.py --user_uuids_file <file>"
-            + "\nmain.py --project_id <int> --excluded_emails_file <file> --should_save_emails <int>"
+            + "\nmain.py --project_id <int> --excluded_emails_file <file> --should_save_users <int>"
         )
         print(instructions)
         sys.exit(2)
 
     try:
-        opts, args = getopt.getopt(argv, "x", ["user_uuids_file=", "project_id=", "excluded_emails_file=", "should_save_emails="])
+        opts, args = getopt.getopt(
+            argv,
+            "x",
+            [
+                "user_uuids_file=",
+                "project_id=",
+                "excluded_emails_file=",
+                "should_save_users=",
+            ],
+        )
     except getopt.GetoptError as err:
         print(err)
         print_usage_and_leave()
@@ -234,21 +290,21 @@ def parse_options(argv):
     user_uuids_filepath = ""
     excluded_emails_filepath = ""
     project_id = None
-    should_save_emails = False
+    should_save_users = False
     for o, a in opts:
         if o == "--user_uuids_file":
             user_uuids_filepath = a
-        elif o == "--excluded_excluded_emails_file":
+        elif o == "--excluded_emails_file":
             excluded_emails_filepath = a
         elif o == "--project_id":
-            project_id = a
-        elif o == "--should_save_emails":
-            should_save_emails != 0
+            project_id = int(a)
+        elif o == "--should_save_users":
+            should_save_users = a != 0
         else:
             print_usage_and_leave()
 
     if user_uuids_filepath and (
-        excluded_emails_filepath or project_id or should_save_emails
+        excluded_emails_filepath or project_id or should_save_users
     ):
         print_usage_and_leave()
 
@@ -256,9 +312,9 @@ def parse_options(argv):
         return "from_uuids", (user_uuids_filepath,)
     else:
         return "from_project_id", (
-            excluded_emails_filepath,
             project_id,
-            should_save_emails,
+            excluded_emails_filepath,
+            should_save_users,
         )
 
 
