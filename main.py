@@ -161,9 +161,6 @@ def extract_traces(db, section, writer_traces, user, trip):
 
 
 def extract_sections_and_traces(user, db, writer, writer_traces):
-    writer.writerow(headers)
-    writer_traces.writerow(headers_traces)
-
     trips = db.Stage_analysis_timeseries.find(
         {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"}
     )
@@ -258,6 +255,8 @@ def extract(db, config_type, options):
     ) as output_traces_file:
         writer = csv.writer(output_file)
         writer_traces = csv.writer(output_traces_file)
+        writer.writerow(headers)
+        writer_traces.writerow(headers_traces)
         for user in users:
             print("Working on : " + user)
             extract_sections_and_traces(user, db, writer, writer_traces)
