@@ -55,6 +55,7 @@ headers_users = [
     "project_id",
     "email",
     "creation_ts",
+    "platform",
 ]
 
 
@@ -201,6 +202,7 @@ def save_users(users):
                     user.get("project_id"),
                     user.get("email"),
                     user.get("creation_ts"),
+                    user.get("curr_platform")
                 ]
             )
 
