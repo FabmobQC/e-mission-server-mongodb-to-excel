@@ -81,11 +81,11 @@ def find_manual_purpose_label(db: database.Database, trip: dict) -> str:
 
 
 def find_mode_predicted_label(
-    db: database.Database, user, trip: dict, section: dict
+    db: database.Database, user_uuid: str, trip: dict, section: dict
 ) -> str:
     mode_predicted = db.Stage_analysis_timeseries.find(
         {
-            "user_id": uuid.UUID(user),
+            "user_id": uuid.UUID(user_uuid),
             "metadata.key": "inference/prediction",
             "data.trip_id": trip["_id"],
             "data.section_id": section["_id"],
