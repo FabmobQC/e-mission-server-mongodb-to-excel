@@ -100,18 +100,18 @@ def find_mode_predicted_label(
 
 def extract_sections(
     db: database.Database,
-    user: str,
+    user_uuid: str,
     trip: dict,
     section: dict,
     writer: _csv._writer,
     manual_mode_label: str,
     manual_purpose_label: str,
 ):
-    mode_predicted_label = find_mode_predicted_label(db, user, trip, section)
+    mode_predicted_label = find_mode_predicted_label(db, user_uuid, trip, section)
 
     writer.writerow(
         [
-            user,
+            user_uuid,
             trip["_id"],
             section["_id"],
             trip["data"]["start_fmt_time"],
@@ -141,7 +141,7 @@ def extract_traces(
     db: database.Database,
     section: dict,
     writer_traces: _csv._writer,
-    user: str,
+    user_uuid: str,
     trip: dict,
 ):
     section_traces = db.Stage_analysis_timeseries.find(
@@ -154,7 +154,7 @@ def extract_traces(
     for trace in section_traces:
         writer_traces.writerow(
             [
-                user,
+                user_uuid,
                 trip["_id"],
                 section["_id"],
                 trace["data"]["fmt_time"],
@@ -171,15 +171,18 @@ def extract_traces(
 
 
 def extract_sections_and_traces(
-    user: str, db: database.Database, writer: _csv._writer, writer_traces: _csv._writer
+    user_uuid: str,
+    db: database.Database,
+    writer: _csv._writer,
+    writer_traces: _csv._writer,
 ):
     trips = db.Stage_analysis_timeseries.find(
-        {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"}
+        {"user_id": uuid.UUID(user_uuid), "metadata.key": "analysis/cleaned_trip"}
     )
     for trip in trips:
         sections = db.Stage_analysis_timeseries.find(
             {
-                "user_id": uuid.UUID(user),
+                "user_id": uuid.UUID(user_uuid),
                 "metadata.key": "analysis/cleaned_section",
                 "data.trip_id": trip["_id"],
             }
@@ -190,26 +193,32 @@ def extract_sections_and_traces(
 
         for section in sections:
             extract_sections(
-                db, user, trip, section, writer, manual_mode_label, manual_purpose_label
+                db,
+                user_uuid,
+                trip,
+                section,
+                writer,
+                manual_mode_label,
+                manual_purpose_label,
             )
-            extract_traces(db, section, writer_traces, user, trip)
+            extract_traces(db, section, writer_traces, user_uuid, trip)
 
 
-def get_users_from_uuids(user_uuids_filepath: str) -> List[str]:
-    users_dirty = []
-    with open(user_uuids_filepath) as f:
-        users_dirty = f.readlines()
-    return [user.strip() for user in users_dirty]
+def get_users_uuids_from_file(users_uuids_filepath: str) -> List[str]:
+    users_uuids_dirty = []
+    with open(users_uuids_filepath) as f:
+        users_uuids_dirty = f.readlines()
+    return [user_uuid.strip() for user_uuid in users_uuids_dirty]
 
 
-def save_users(users):
+def save_users(users: List[dict]):
     with open("e_mission_database_users.csv", "w") as file:
         writer = csv.writer(file)
         writer.writerow(headers_users)
         for user in users:
             writer.writerow(
                 [
-                    user.get("user_id").hex,
+                    user.get("user_id").hex,  # type: ignore # We're not willing to put too much efforts into typing for now
                     user.get("project_id"),
                     user.get("email"),
                     user.get("creation_ts"),
@@ -218,7 +227,7 @@ def save_users(users):
             )
 
 
-def get_users_from_project_ids(
+def get_users_uuids_from_project_id(
     db: database.Database,
     project_id: int,
     excluded_emails_filepath: str,
@@ -252,20 +261,22 @@ def get_users_from_project_ids(
     return [user["user_id"].hex for user in users]
 
 
-def get_users(db: database.Database, config_type: str, options: Tuple) -> List[str]:
+def get_users_uuids(
+    db: database.Database, config_type: str, options: Tuple
+) -> List[str]:
     if config_type == "from_uuids":
         (user_uuids_filepath,) = options
-        users = get_users_from_uuids(user_uuids_filepath)
+        users_uuids = get_users_uuids_from_file(user_uuids_filepath)
     elif config_type == "from_project_id":
         project_id, excluded_emails_filepath, should_save_users = options
-        users = get_users_from_project_ids(
+        users_uuids = get_users_uuids_from_project_id(
             db, project_id, excluded_emails_filepath, should_save_users
         )
-    return users  # Will throw an exception if config_type has not been handled
+    return users_uuids  # Will throw an exception if config_type has not been handled
 
 
 def extract(db: database.Database, config_type: str, options: Tuple):
-    users = get_users(db, config_type, options)
+    users_uuids = get_users_uuids(db, config_type, options)
     with open("e_mission_database.csv", "w") as output_file, open(
         "e_mission_database_traces.csv", "w"
     ) as output_traces_file:
@@ -273,6 +284,6 @@ def extract(db: database.Database, config_type: str, options: Tuple):
         writer_traces = csv.writer(output_traces_file)
         writer.writerow(headers)
         writer_traces.writerow(headers_traces)
-        for user in users:
-            print("Working on : " + user)
-            extract_sections_and_traces(user, db, writer, writer_traces)
+        for user_uuid in users_uuids:
+            print("Working on : " + user_uuid)
+            extract_sections_and_traces(user_uuid, db, writer, writer_traces)

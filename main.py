@@ -2,10 +2,12 @@ from pymongo import MongoClient
 import json
 import sys
 import getopt
+from typing import List, Tuple
 
 from extract import extract
 
-def parse_options(argv):
+
+def parse_options(argv: List[str]) -> Tuple:
     def print_usage_and_leave():
         instructions = (
             "main.py --user_uuids_file <file>"
