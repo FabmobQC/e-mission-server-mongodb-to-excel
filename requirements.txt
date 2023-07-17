@@ -1,3 +1,2 @@
-pymongo
-python-csv
-numpy
+pymongo==4.3.3
+python-csv==0.0.13
