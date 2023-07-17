@@ -1,5 +1,9 @@
 import csv
+import _csv
 import uuid
+from typing import List, Tuple
+
+from pymongo import database
 
 headers = [
     "user_uuid",
@@ -50,7 +54,7 @@ headers_users = [
 ]
 
 
-def find_manual_mode_label(db, trip):
+def find_manual_mode_label(db: database.Database, trip: dict) -> str:
     manual_mode = db.Stage_timeseries.find(
         {
             "data.start_ts": trip["data"]["start_ts"],
@@ -63,7 +67,7 @@ def find_manual_mode_label(db, trip):
     return manual_mode_label
 
 
-def find_manual_purpose_label(db, trip):
+def find_manual_purpose_label(db: database.Database, trip: dict) -> str:
     manual_purpose = db.Stage_timeseries.find(
         {
             "data.start_ts": trip["data"]["start_ts"],
@@ -76,7 +80,9 @@ def find_manual_purpose_label(db, trip):
     return manual_purpose_label
 
 
-def find_mode_predicted_label(db, user, trip, section):
+def find_mode_predicted_label(
+    db: database.Database, user, trip: dict, section: dict
+) -> str:
     mode_predicted = db.Stage_analysis_timeseries.find(
         {
             "user_id": uuid.UUID(user),
@@ -93,7 +99,13 @@ def find_mode_predicted_label(db, user, trip, section):
 
 
 def extract_sections(
-    db, user, trip, section, writer, manual_mode_label, manual_purpose_label
+    db: database.Database,
+    user: str,
+    trip: dict,
+    section: dict,
+    writer: _csv._writer,
+    manual_mode_label: str,
+    manual_purpose_label: str,
 ):
     mode_predicted_label = find_mode_predicted_label(db, user, trip, section)
 
@@ -125,7 +137,13 @@ def extract_sections(
     )
 
 
-def extract_traces(db, section, writer_traces, user, trip):
+def extract_traces(
+    db: database.Database,
+    section: dict,
+    writer_traces: _csv._writer,
+    user: str,
+    trip: dict,
+):
     section_traces = db.Stage_analysis_timeseries.find(
         {
             "metadata.key": "analysis/recreated_location",
@@ -152,7 +170,9 @@ def extract_traces(db, section, writer_traces, user, trip):
         )
 
 
-def extract_sections_and_traces(user, db, writer, writer_traces):
+def extract_sections_and_traces(
+    user: str, db: database.Database, writer: _csv._writer, writer_traces: _csv._writer
+):
     trips = db.Stage_analysis_timeseries.find(
         {"user_id": uuid.UUID(user), "metadata.key": "analysis/cleaned_trip"}
     )
@@ -175,7 +195,7 @@ def extract_sections_and_traces(user, db, writer, writer_traces):
             extract_traces(db, section, writer_traces, user, trip)
 
 
-def get_users_from_uuids(user_uuids_filepath):
+def get_users_from_uuids(user_uuids_filepath: str) -> List[str]:
     users_dirty = []
     with open(user_uuids_filepath) as f:
         users_dirty = f.readlines()
@@ -193,14 +213,17 @@ def save_users(users):
                     user.get("project_id"),
                     user.get("email"),
                     user.get("creation_ts"),
-                    user.get("curr_platform")
+                    user.get("curr_platform"),
                 ]
             )
 
 
 def get_users_from_project_ids(
-    db, project_id, excluded_emails_filepath, should_save_users
-):
+    db: database.Database,
+    project_id: int,
+    excluded_emails_filepath: str,
+    should_save_users: bool,
+) -> List[str]:
     excluded_emails = []
     if excluded_emails_filepath:
         with open(excluded_emails_filepath) as f:
@@ -229,7 +252,7 @@ def get_users_from_project_ids(
     return [user["user_id"].hex for user in users]
 
 
-def get_users(db, config_type, options):
+def get_users(db: database.Database, config_type: str, options: Tuple) -> List[str]:
     if config_type == "from_uuids":
         (user_uuids_filepath,) = options
         users = get_users_from_uuids(user_uuids_filepath)
@@ -241,7 +264,7 @@ def get_users(db, config_type, options):
     return users  # Will throw an exception if config_type has not been handled
 
 
-def extract(db, config_type, options):
+def extract(db: database.Database, config_type: str, options: Tuple):
     users = get_users(db, config_type, options)
     with open("e_mission_database.csv", "w") as output_file, open(
         "e_mission_database_traces.csv", "w"
