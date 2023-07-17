@@ -1,5 +1,4 @@
 import csv
-import _csv
 import uuid
 from typing import List, Tuple
 
@@ -103,7 +102,7 @@ def extract_sections(
     user_uuid: str,
     trip: dict,
     section: dict,
-    writer: _csv._writer,
+    writer,
     manual_mode_label: str,
     manual_purpose_label: str,
 ):
@@ -140,7 +139,7 @@ def extract_sections(
 def extract_traces(
     db: database.Database,
     section: dict,
-    writer_traces: _csv._writer,
+    writer_traces,
     user_uuid: str,
     trip: dict,
 ):
@@ -173,8 +172,8 @@ def extract_traces(
 def extract_sections_and_traces(
     user_uuid: str,
     db: database.Database,
-    writer: _csv._writer,
-    writer_traces: _csv._writer,
+    writer,
+    writer_traces,
 ):
     trips = db.Stage_analysis_timeseries.find(
         {"user_id": uuid.UUID(user_uuid), "metadata.key": "analysis/cleaned_trip"}
