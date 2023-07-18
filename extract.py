@@ -1,5 +1,5 @@
+import bson
 import csv
-import uuid
 from typing import List, Tuple
 
 from pymongo import database
@@ -80,11 +80,11 @@ def find_manual_purpose_label(db: database.Database, trip: dict) -> str:
 
 
 def find_mode_predicted_label(
-    db: database.Database, user_uuid: str, trip: dict, section: dict
+    db: database.Database, user_id: bson.Binary, trip: dict, section: dict
 ) -> str:
     mode_predicted = db.Stage_analysis_timeseries.find(
         {
-            "user_id": uuid.UUID(user_uuid),
+            "user_id": user_id,
             "metadata.key": "inference/prediction",
             "data.trip_id": trip["_id"],
             "data.section_id": section["_id"],
@@ -99,18 +99,18 @@ def find_mode_predicted_label(
 
 def extract_sections(
     db: database.Database,
-    user_uuid: str,
+    user_id: bson.Binary,
     trip: dict,
     section: dict,
     writer,
     manual_mode_label: str,
     manual_purpose_label: str,
 ):
-    mode_predicted_label = find_mode_predicted_label(db, user_uuid, trip, section)
+    mode_predicted_label = find_mode_predicted_label(db, user_id, trip, section)
 
     writer.writerow(
         [
-            user_uuid,
+            user_id.hex(),
             trip["_id"],
             section["_id"],
             trip["data"]["start_fmt_time"],
@@ -140,7 +140,7 @@ def extract_traces(
     db: database.Database,
     section: dict,
     writer_traces,
-    user_uuid: str,
+    user_id: bson.Binary,
     trip: dict,
 ):
     section_traces = db.Stage_analysis_timeseries.find(
@@ -153,7 +153,7 @@ def extract_traces(
     for trace in section_traces:
         writer_traces.writerow(
             [
-                user_uuid,
+                user_id.hex(),
                 trip["_id"],
                 section["_id"],
                 trace["data"]["fmt_time"],
@@ -170,18 +170,18 @@ def extract_traces(
 
 
 def extract_sections_and_traces(
-    user_uuid: str,
+    user_id: bson.Binary,
     db: database.Database,
     writer,
     writer_traces,
 ):
     trips = db.Stage_analysis_timeseries.find(
-        {"user_id": uuid.UUID(user_uuid), "metadata.key": "analysis/cleaned_trip"}
+        {"user_id": user_id, "metadata.key": "analysis/cleaned_trip"}
     )
     for trip in trips:
         sections = db.Stage_analysis_timeseries.find(
             {
-                "user_id": uuid.UUID(user_uuid),
+                "user_id": user_id,
                 "metadata.key": "analysis/cleaned_section",
                 "data.trip_id": trip["_id"],
             }
@@ -193,21 +193,24 @@ def extract_sections_and_traces(
         for section in sections:
             extract_sections(
                 db,
-                user_uuid,
+                user_id,
                 trip,
                 section,
                 writer,
                 manual_mode_label,
                 manual_purpose_label,
             )
-            extract_traces(db, section, writer_traces, user_uuid, trip)
+            extract_traces(db, section, writer_traces, user_id, trip)
 
 
-def get_users_uuids_from_file(users_uuids_filepath: str) -> List[str]:
+def get_users_ids_from_uuids_file(users_uuids_filepath: str) -> List[bson.Binary]:
     users_uuids_dirty = []
     with open(users_uuids_filepath) as f:
         users_uuids_dirty = f.readlines()
-    return [user_uuid.strip() for user_uuid in users_uuids_dirty]
+    return [
+        bson.Binary(user_uuid.strip().encode("utf-8"))
+        for user_uuid in users_uuids_dirty
+    ]
 
 
 def save_users(users: List[dict]):
@@ -217,7 +220,7 @@ def save_users(users: List[dict]):
         for user in users:
             writer.writerow(
                 [
-                    user.get("user_id").hex,  # type: ignore # We're not willing to put too much efforts into typing for now
+                    user.get("user_id").hex(),  # type: ignore # We're not willing to put too much efforts into typing for now
                     user.get("project_id"),
                     user.get("email"),
                     user.get("creation_ts"),
@@ -226,12 +229,12 @@ def save_users(users: List[dict]):
             )
 
 
-def get_users_uuids_from_project_id(
+def get_users_ids_from_project_id(
     db: database.Database,
     project_id: int,
     excluded_emails_filepath: str,
     should_save_users: bool,
-) -> List[str]:
+) -> List[bson.Binary]:
     excluded_emails = []
     if excluded_emails_filepath:
         with open(excluded_emails_filepath) as f:
@@ -257,25 +260,25 @@ def get_users_uuids_from_project_id(
     if should_save_users:
         save_users(users)
 
-    return [user["user_id"].hex for user in users]
+    return [user["user_id"] for user in users]
 
 
-def get_users_uuids(
+def get_users_ids(
     db: database.Database, config_type: str, options: Tuple
-) -> List[str]:
+) -> List[bson.Binary]:
     if config_type == "from_uuids":
         (user_uuids_filepath,) = options
-        users_uuids = get_users_uuids_from_file(user_uuids_filepath)
+        users_ids = get_users_ids_from_uuids_file(user_uuids_filepath)
     elif config_type == "from_project_id":
         project_id, excluded_emails_filepath, should_save_users = options
-        users_uuids = get_users_uuids_from_project_id(
+        users_ids = get_users_ids_from_project_id(
             db, project_id, excluded_emails_filepath, should_save_users
         )
-    return users_uuids  # Will throw an exception if config_type has not been handled
+    return users_ids  # Will throw an exception if config_type has not been handled
 
 
 def extract(db: database.Database, config_type: str, options: Tuple):
-    users_uuids = get_users_uuids(db, config_type, options)
+    users_ids = get_users_ids(db, config_type, options)
     with open("e_mission_database.csv", "w") as output_file, open(
         "e_mission_database_traces.csv", "w"
     ) as output_traces_file:
@@ -283,6 +286,6 @@ def extract(db: database.Database, config_type: str, options: Tuple):
         writer_traces = csv.writer(output_traces_file)
         writer.writerow(headers)
         writer_traces.writerow(headers_traces)
-        for user_uuid in users_uuids:
-            print("Working on : " + user_uuid)
-            extract_sections_and_traces(user_uuid, db, writer, writer_traces)
+        for user_id in users_ids:
+            print("Working on : ", user_id.hex())
+            extract_sections_and_traces(user_id, db, writer, writer_traces)
