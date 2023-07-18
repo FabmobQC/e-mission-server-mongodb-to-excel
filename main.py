@@ -11,7 +11,7 @@ def parse_options(argv: List[str]) -> Tuple:
     def print_usage_and_leave():
         instructions = (
             "main.py --user_uuids_file <file>"
-            + "\nmain.py --project_id <int> --excluded_emails_file <file> --should_save_users <int>"
+            + "\nmain.py --project_id <int> --excluded_emails_file <file> --should_save_users"
         )
         print(instructions)
         sys.exit(2)
@@ -24,7 +24,7 @@ def parse_options(argv: List[str]) -> Tuple:
                 "user_uuids_file=",
                 "project_id=",
                 "excluded_emails_file=",
-                "should_save_users=",
+                "should_save_users",
             ],
         )
     except getopt.GetoptError as err:
@@ -43,7 +43,7 @@ def parse_options(argv: List[str]) -> Tuple:
         elif o == "--project_id":
             project_id = int(a)
         elif o == "--should_save_users":
-            should_save_users = a != 0
+            should_save_users = True
         else:
             print_usage_and_leave()
 
