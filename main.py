@@ -4,7 +4,7 @@ import sys
 import getopt
 from typing import List, Tuple
 
-from extract import extract
+from extraction import extract
 
 
 def parse_options(argv: List[str]) -> Tuple:
