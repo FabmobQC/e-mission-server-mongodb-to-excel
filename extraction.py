@@ -49,7 +49,11 @@ headers_users = [
     "project_id",
     "email",
     "creation_ts",
-    "platform",
+    "curr_platform",
+    "client_app_version",
+    "phone_lang",
+    "client_os_version",
+    "manufacturer",
 ]
 
 
@@ -225,6 +229,10 @@ def save_users(users: List[dict]):
                     user.get("email"),
                     user.get("creation_ts"),
                     user.get("curr_platform"),
+                    user.get("client_app_version"),
+                    user.get("phone_lang"),
+                    user.get("client_os_version"),
+                    user.get("manufacturer"),
                 ]
             )
 
